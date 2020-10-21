@@ -92,7 +92,7 @@
   },
   "dependencies": {
     "attr-accept": "^2.2.1",
-    "file-selector": "git+ssh://git@github.com/otixo-inc/file-selector.git#v1.0.1",
+    "file-selector": "git+https://github.com/otixo-inc/file-selector.git#v1.0.1",
     "prop-types": "^15.7.2"
   },
   "devDependencies": {
