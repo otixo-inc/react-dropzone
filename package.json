@@ -1,5 +1,5 @@
 {
-  "name": "react-dropzone",
+  "name": "@otixo/react-dropzone",
   "description": "Simple HTML5 drag-drop zone with React.js",
   "main": "dist/index.js",
   "module": "dist/es/index.js",
@@ -16,7 +16,6 @@
     "eslint:src": "eslint .",
     "commitmsg": "commitlint -e",
     "precommit": "lint-staged",
-    "prepare": "npm run build",
     "prepublish": "npm run build && npm run size",
     "logo": "cd logo && sketchtool export artboards logo.sketch",
     "imagemin": "imagemin --out-dir=logo --plugin=pngquant --plugin=svgo",
@@ -167,7 +166,7 @@
       "path": "@commitlint/prompt"
     }
   },
-  "version": "0.0.0-development",
+  "version": "12.0.2",
   "engines": {
     "node": ">= 10"
   }
