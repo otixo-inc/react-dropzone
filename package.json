@@ -16,6 +16,7 @@
     "eslint:src": "eslint .",
     "commitmsg": "commitlint -e",
     "precommit": "lint-staged",
+    "prepare": "npm run build",
     "prepublish": "npm run build && npm run size",
     "logo": "cd logo && sketchtool export artboards logo.sketch",
     "imagemin": "imagemin --out-dir=logo --plugin=pngquant --plugin=svgo",
@@ -91,7 +92,7 @@
   },
   "dependencies": {
     "attr-accept": "^2.2.1",
-    "file-selector": "^0.1.12",
+    "file-selector": "git+ssh://git@github.com/otixo-inc/file-selector.git#v1.0.0",
     "prop-types": "^15.7.2"
   },
   "devDependencies": {
