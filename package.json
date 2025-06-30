@@ -170,5 +170,8 @@
   "version": "0.0.0-development",
   "engines": {
     "node": ">= 10"
+  },
+  "resolutions": {
+    "node-sass": "^9.0.0"
   }
 }
