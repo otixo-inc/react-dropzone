@@ -1159,6 +1159,20 @@ describe('useDropzone() hook', () => {
   })
 
   describe('onClick', () => {
+    let currentShowOpenFilePicker;
+
+    beforeEach(() => {
+      currentShowOpenFilePicker = window.showOpenFilePicker
+    })
+
+    afterEach(() => {
+      if (currentShowOpenFilePicker) {
+        window.showOpenFilePicker = currentShowOpenFilePicker
+      } else {
+        delete window.showOpenFilePicker
+      }
+    })
+
     it('should proxy the click event to the input', () => {
       const activeRef = createRef()
       const active = <span ref={activeRef}>I am active</span>
@@ -1302,6 +1316,185 @@ describe('useDropzone() hook', () => {
       expect(onClickSpy).toHaveBeenCalled()
       jest.useRealTimers()
       isIeOrEdgeSpy.mockClear()
+    })
+
+    it('should use showOpenFilePicker() if supported and not trigger click on input', async () => {
+      const activeRef = createRef()
+      const active = <span ref={activeRef}>I am active</span>
+      const onClickSpy = jest.spyOn(HTMLInputElement.prototype, 'click')
+
+      const handlers = files.map(f => createFileSystemFileHandle(f))
+      const thenable = createThenable()
+      const showOpenFilePickerMock = jest.fn().mockReturnValue(thenable.promise)
+
+      window.showOpenFilePicker = showOpenFilePickerMock
+
+      const onDropSpy = jest.fn()
+      const onFileDialogOpenSpy = jest.fn()
+
+      const ui = (
+        <Dropzone
+          onDrop={onDropSpy}
+          onFileDialogOpen={onFileDialogOpenSpy}
+          accept="application/pdf"
+          multiple
+        >
+          {({ getRootProps, getInputProps, isFileDialogActive }) => (
+            <div {...getRootProps()}>
+              <input {...getInputProps()} />
+              {isFileDialogActive && active}
+            </div>
+          )}
+        </Dropzone>
+      )
+
+      const { container, rerender } = render(ui)
+
+      const dropzone = container.querySelector('div')
+
+      fireEvent.click(dropzone)
+
+      await flushPromises(rerender, ui)
+
+      expect(activeRef.current).not.toBeNull()
+      expect(dropzone).toContainElement(activeRef.current)
+      expect(onFileDialogOpenSpy).toHaveBeenCalled()
+
+      thenable.done(handlers)
+      await flushPromises(rerender, ui)
+
+      expect(activeRef.current).toBeNull() // We expect the dialog to be closed at this point
+      expect(dropzone).not.toContainElement(activeRef.current)
+      expect(onClickSpy).not.toHaveBeenCalled()
+      expect(showOpenFilePickerMock).toHaveBeenCalledWith({
+        multiple: true,
+        types: [{
+          description: 'everything',
+          accept: {'application/pdf': []}
+        }]
+      })
+      expect(onDropSpy).toHaveBeenCalledWith(files, [], null)
+    })
+
+    test('if showOpenFilePicker() is supported it should work without the <input>', async () => {
+      const activeRef = createRef()
+      const active = <span ref={activeRef}>I am active</span>
+
+      const handlers = files.map(f => createFileSystemFileHandle(f))
+      const showOpenFilePickerMock = jest.fn().mockReturnValue(Promise.resolve(handlers))
+
+      window.showOpenFilePicker = showOpenFilePickerMock
+
+      const onDropSpy = jest.fn()
+      const onFileDialogOpenSpy = jest.fn()
+
+      const ui = (
+        <Dropzone onDrop={onDropSpy} onFileDialogOpen={onFileDialogOpenSpy}>
+          {({ getRootProps, isFileDialogActive }) => (
+            <div {...getRootProps()}>
+              {isFileDialogActive && active}
+            </div>
+          )}
+        </Dropzone>
+      )
+
+      const { container, rerender } = render(ui)
+
+      const dropzone = container.querySelector('div')
+
+      fireEvent.click(dropzone)
+      await flushPromises(rerender, ui)
+      const ref = activeRef.current
+      expect(ref).toBeNull() // We expect the dialog to be closed at this point
+      expect(dropzone).not.toContainElement(ref)
+      expect(showOpenFilePickerMock).toHaveBeenCalled()
+      expect(onDropSpy).toHaveBeenCalledWith(files, [], null)
+      expect(onFileDialogOpenSpy).toHaveBeenCalled()
+    })
+
+    test('if showOpenFilePicker() is supported and the user cancels it should call onFileDialogCancel', async () => {
+      const activeRef = createRef()
+      const active = <span ref={activeRef}>I am active</span>
+
+      const showOpenFilePickerMock = jest.fn().mockReturnValue(Promise.reject(new DOMException("user aborted request", "AbortError")))
+
+      window.showOpenFilePicker = showOpenFilePickerMock
+
+      const onDropSpy = jest.fn()
+      const onFileDialogCancelSpy = jest.fn()
+
+      const ui = (
+        <Dropzone onDrop={onDropSpy} onFileDialogCancel={onFileDialogCancelSpy}>
+          {({ getRootProps, isFileDialogActive }) => (
+            <div {...getRootProps()}>
+              {isFileDialogActive && active}
+            </div>
+          )}
+        </Dropzone>
+      )
+
+      const { container, rerender } = render(ui)
+
+      const dropzone = container.querySelector('div')
+
+      fireEvent.click(dropzone)
+      await flushPromises(rerender, ui)
+      const ref = activeRef.current
+      expect(ref).toBeNull() // We expect the dialog to be closed at this point
+      expect(dropzone).not.toContainElement(ref)
+      expect(showOpenFilePickerMock).toHaveBeenCalled()
+      expect(onDropSpy).not.toHaveBeenCalled()
+      expect(onFileDialogCancelSpy).toHaveBeenCalled()
+    })
+
+    test('window focus evt is not bound if showOpenFilePicker() is supported', async () => {
+      jest.useFakeTimers()
+
+      const activeRef = createRef()
+      const active = <span ref={activeRef}>I am active</span>
+      const onFileDialogCancelSpy = jest.fn()
+
+      const thenable = createThenable()
+      const showOpenFilePickerMock = jest.fn().mockReturnValue(thenable.promise)
+
+      window.showOpenFilePicker = showOpenFilePickerMock
+
+      const ui = (
+        <Dropzone onFileDialogCancel={onFileDialogCancelSpy} noClick>
+          {({ getRootProps, isFileDialogActive, open }) => (
+            <div {...getRootProps()}>
+              {isFileDialogActive && active}
+              <button type="button" onClick={open}>
+                Open
+              </button>
+            </div>
+          )}
+        </Dropzone>
+      )
+
+      const { container, rerender } = render(ui)
+
+      const dropzone = container.querySelector('div')
+      const btn = container.querySelector('button')
+
+      btn.click()
+      drainTimers()
+      await flushPromises(rerender, ui)
+
+      const ref = activeRef.current
+      expect(ref).not.toBeNull()
+      expect(dropzone).toContainElement(ref)
+
+      thenable.cancel(new DOMException('user aborted request', 'AbortError'))
+
+      dispatchEvt(document.body, 'focus')
+      drainTimers()
+      await flushPromises(rerender, ui)
+
+      expect(onFileDialogCancelSpy).toHaveBeenCalledTimes(1)
+      expect(dropzone).not.toContainElement(ref)
+
+      jest.useRealTimers()
     })
   })
 
@@ -2097,9 +2290,11 @@ describe('useDropzone() hook', () => {
       const onDropRejectedSpy = jest.fn()
       const ui = (
         <Dropzone accept="image/*" onDrop={onDropSpy} onDropRejected={onDropRejectedSpy} multiple={true} maxFiles={1}>
-          {({ getRootProps, getInputProps }) => (
+          {({ getRootProps, getInputProps, isDragReject, isDragAccept }) => (
             <div {...getRootProps()}>
               <input {...getInputProps()} />
+               {isDragReject && 'dragReject'}
+               {isDragAccept && 'dragAccept'}
             </div>
           )}
         </Dropzone>
@@ -2109,6 +2304,10 @@ describe('useDropzone() hook', () => {
       fireDrop(dropzone, createDtWithFiles(images))
       await flushPromises(rerender, ui)
       expect(onDropRejectedSpy).toHaveBeenCalled()
+      fireDragEnter(dropzone, createDtWithFiles(images))
+      await flushPromises(rerender, ui)
+      expect(dropzone).toHaveTextContent('dragReject')
+      expect(dropzone).not.toHaveTextContent('dragAccept')
       expect(onDropSpy).toHaveBeenCalledWith([], [
         {
           file: images[0],
@@ -2129,6 +2328,36 @@ describe('useDropzone() hook', () => {
           ]
         }
       ], expect.anything())
+    })
+
+    it('rejects all files if {multiple} is true and maxFiles has been updated so that it is less than files', async () => {
+      const onDropSpy = jest.fn()
+      const onDropRejectedSpy = jest.fn()
+      const ui = (maxFiles) => (
+        <Dropzone accept="image/*" onDrop={onDropSpy} multiple={true} maxFiles={maxFiles} onDropRejected={onDropRejectedSpy}>
+          {({ getRootProps, getInputProps }) => (
+            <div {...getRootProps()}>
+              <input {...getInputProps()} />
+            </div>
+          )}
+        </Dropzone>
+      )
+      const { container, rerender } = render(ui(3))
+      const dropzone = container.querySelector('div')
+
+      fireDrop(dropzone, createDtWithFiles(images))
+      await flushPromises(rerender, ui(3))
+      expect(onDropRejectedSpy).not.toHaveBeenCalled()
+      expect(onDropSpy).toHaveBeenCalledWith(images, [], expect.anything())
+
+      rerender(ui(1));
+
+      fireDrop(dropzone, createDtWithFiles(images))
+      await flushPromises(rerender, ui(1))
+      expect(onDropRejectedSpy).toHaveBeenCalledWith(
+        expect.arrayContaining(images.map((image) => expect.objectContaining({ errors: expect.any(Array), file: image }))),
+        expect.anything()
+      )
     })
 
     it('accepts multiple files if {multiple} is true and {accept} criteria is met', async () => {
@@ -2592,6 +2821,49 @@ describe('useDropzone() hook', () => {
     })
   })
 
+  describe('onFileDialogOpen', () => {
+    it('is invoked when opening the file dialog', () => {
+      const onFileDialogOpenSpy = jest.fn()
+      const { container } = render(
+        <Dropzone
+          onFileDialogOpen={onFileDialogOpenSpy}>
+          {({ getRootProps, getInputProps }) => (
+            <div {...getRootProps()}>
+              <input {...getInputProps()} />
+            </div>
+          )}
+        </Dropzone>
+      )
+
+      const dropzone = container.querySelector('div')
+      fireEvent.click(dropzone)
+
+      expect(onFileDialogOpenSpy).toHaveBeenCalled()
+    })
+
+    it('is invoked when opening the file dialog programmatically', () => {
+      const onFileDialogOpenSpy = jest.fn()
+      const { container } = render(
+        <Dropzone
+          onFileDialogOpen={onFileDialogOpenSpy}>
+          {({ getRootProps, getInputProps, open }) => (
+            <div {...getRootProps()}>
+              <input {...getInputProps()} />
+              <button type="button" onClick={open}>
+                Open
+              </button>
+            </div>
+          )}
+        </Dropzone>
+      )
+
+      const btn = container.querySelector('button')
+      btn.click()
+
+      expect(onFileDialogOpenSpy).toHaveBeenCalled()
+    })
+  })
+
   describe('{open}', () => {
     it('can open file dialog programmatically', () => {
       const onClickSpy = jest.spyOn(HTMLInputElement.prototype, 'click')
@@ -2683,6 +2955,47 @@ describe('useDropzone() hook', () => {
       expect(fn).not.toThrow()
     })
   })
+
+  describe('validator', () => {
+    it('rejects with custom error', async () => {
+      const validator = file => {
+        if (/dogs/i.test(file.name))
+          return { code: 'dogs-not-allowed', message: 'Dogs not allowed' };
+
+        return null;
+      }
+
+      const onDropSpy = jest.fn()
+
+      const ui = (
+        <Dropzone validator={validator} onDrop={onDropSpy} multiple={true}>
+          {({ getRootProps, getInputProps }) => (
+            <div {...getRootProps()}>
+              <input {...getInputProps()} />
+            </div>
+          )}
+        </Dropzone>
+      )
+
+      const { container, rerender } = render(ui)
+      const dropzone = container.querySelector('div')
+
+      fireDrop(dropzone, createDtWithFiles(images))
+      await flushPromises(rerender, ui)
+
+      expect(onDropSpy).toHaveBeenCalledWith([images[0]], [
+        {
+          file: images[1],
+          errors: [
+            {
+              code: 'dogs-not-allowed',
+              message: 'Dogs not allowed',
+            }
+          ]
+        }
+      ], expect.anything())
+    })
+  })
 })
 
 async function flushPromises(rerender, ui) {
@@ -2734,6 +3047,10 @@ function dispatchEvt(node, type, data) {
   fireEvent(node, event)
 }
 
+function createFileSystemFileHandle(file) {
+  return {getFile: () => Promise.resolve(file)}
+}
+
 function createFile(name, size, type) {
   const file = new File([], name, { type })
   Object.defineProperty(file, 'size', {
@@ -2742,4 +3059,19 @@ function createFile(name, size, type) {
     }
   })
   return file
+}
+
+function createThenable() {
+  let done, cancel;
+
+  const promise = new Promise((resolve, reject) => {
+    done = resolve
+    cancel = reject
+  })
+
+  return {
+    promise,
+    done,
+    cancel
+  }
 }
